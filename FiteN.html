@@ -1,0 +1,257 @@
+<html>
+    <title>FiteN</title>
+    <body>
+    <script type="text/javascript">
+    /*
+        Small notes, how program operates:
+        dir is the direction user faces and range often refers to the angle width of the FofV
+        makeView function gathers the items inside the user's pie shaped view area and puts them into the render function so they will be drawn along with the rest of the view
+    */
+        (function(){
+            function createCanvas(width, height) {
+              var canvas = document.createElement('canvas');
+              canvas.setAttribute('width', width || 200);
+              canvas.setAttribute('height', height || 200);
+              canvas.setAttribute('style', 'background-color: white; border: 1px solid black;');
+              document.body.appendChild(canvas);
+              return [canvas,canvas.getContext('2d')];
+            }
+
+            function screenSize() {
+                var w = window.innerWidth - 15;
+                var h = window.innerHeight - 15;
+                if (h > w * 2.6/5) {
+                    h = w * 2.6/5;
+                }
+                return [w,h];
+            }
+
+            function makeScreen() {
+                var size = screenSize();
+                return createCanvas(size[0],size[1]);
+            }
+
+            function resize() {
+                var newSize = screenSize();
+                cnvs.width = newSize[0], cnvs.height = newSize[1];
+            }
+
+            //returns object full of calculation functions
+            var calculations =  {
+                //dir is angle user is facing, range is angle width of view, dist is the range of sight distance, x_0, y_0 are user coordinates.
+                viewSpace : function(dir, range, dist, x_0, y_0) {
+                    //why did you add this in? why does dir have to be in between 0 and pi?
+                    if (range > pi || range < 0) {
+                        throw "range is invalid";
+                    }
+                    //2π - (π - range)/2  ->  (π - range)/2
+                        // >1 <2
+                    if ( dir > 2 * pi - (pi - range) / 2 || dir < (pi - range) / 2 ) {
+                        return function(x,y) {
+                            /*
+                            a test I ran to fix some errors
+                            console.log(y - y_0 > Math.tan( dir - (range / 2) * (x - x_0) ), y - y_0 < Math.tan( dir + (range / 2)) * (x - x_0), "Y " + (y - y_0), "X " + (x - x_0), "right " + ( Math.tan( dir + (range / 2)) * (x - x_0) ) );
+                            */
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = Math.tan( dir + (range / 2));
+                            return [((y - y_0 > m1 * (x - x_0) ) && 
+                                y - y_0 < m2 * (x - x_0) &&
+                                Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) ) < dist), distance, m1, m2];
+                        }
+                    }
+                    //(π - range)/2  ->  π - (π - range)/2
+                        // >1 >2
+                    else if ( dir > (pi - range) / 2 && dir > pi - (pi - range) / 2 ) {
+                        return function(x,y) {
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = Math.tan( dir + (range / 2));
+                            return [((y - y_0 > m1 * (x - x_0) ) && 
+                                y - y_0 > m2 * (x - x_0) &&
+                                Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) ) < dist), distance, m1, m2];
+                        }
+                    }
+                    // π - (π - range)/2  ->  π + (π - range)/2
+                        // <1 >2
+                    else if ( dir < pi - (pi - range) / 2 && dir > pi + (pi - range) / 2 ) {
+                        return function(x,y) {
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = Math.tan( dir + (range / 2));
+                            return [((y - y_0 < m1 * (x - x_0) ) && 
+                                y - y_0 > m2 * (x - x_0) &&
+                                Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) ) < dist), distance, m1, m2];
+                        }
+                    }
+                    // π + (π - range)/2  ->  2π - (π - range)/2
+                        // <1 <2
+                    else if ( dir < pi + (pi - range) / 2 && dir < 2 * pi - (pi - range) / 2 ) {
+                        return function(x,y) {
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = Math.tan( dir + (range / 2));
+                            return [((y - y_0 < m1 * (x - x_0) ) && 
+                                y - y_0 < m2 * (x - x_0) &&
+                                distance < dist), distance, m1, m2];
+                        }
+                    }
+                    // below are the cases where one of the 2 FofV lines is x=0
+                    else if (dir === 2 * pi - (pi - range) / 2) {
+                        return function(x,y) {
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = null;
+                            return [((y - y_0 < m1 * (x - x_0) ) && 
+                                x - x_0 > 0 &&
+                                distance < dist), distance, m1, m2];
+                        }
+                    }
+                    else if (dir === (pi - range) / 2) {
+                        return function(x,y) {
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = null;
+                            return [((y - y_0 > m1 * (x - x_0) ) && 
+                                x - x_0 > 0 &&
+                                distance < dist), distance, m1, m2];
+                        }
+                    }
+                    else if (dir === pi - (pi - range) / 2) {
+                        return function(x,y) {
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = null;
+                            return [((y - y_0 > m1 * (x - x_0) ) && 
+                                x - x_0 < 0 &&
+                                distance < dist), distance, m1, m2];
+                        }
+                    }
+                    else if (dir === pi + (pi - range) / 2) {
+                        return function(x,y) {
+                            var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
+                            var m1 = Math.tan( dir - (range / 2));
+                            var m2 = null;
+                            return [((y - y_0 > m1 * (x - x_0) ) && 
+                                x - x_0 < 0 &&
+                                distance < dist), distance, m1, m2];
+                        }
+                    }
+                    else {
+                        throw "Error: dir not found";
+                    }
+                },
+                //Return slope and y intercept so it is easy to make equation of line (created for dir)
+                lineEquation: function(angle, x_0, y_0, m_0) {
+                    if (angle != null) {
+                        var m_0 = Math.tan(angle);
+                    }
+                    var b_0 = y_0 - m_0 * x_0;
+                    return {m_0: m_0, b_0: b_0};
+                },
+                //I added this function so that you can calculate the side lengths of the item pos
+                lineLength: function(m_0, b_0, x, y) {
+                    var m = -1 / m_0;
+                    var b = y - m * x;
+                    var newX = (b - b_0) / (m_0 - m);
+                    var newY = m * newX + b;
+                    var length = Math.sqrt(Math.pow( x - newX , 2 ) + Math.pow( y - newY , 2 ));
+                    return length;
+                },
+                itemAngle: function(opposite, hypotenuse) {
+                    var angle = Math.asin(opposite/hypotenuse);
+                    return angle;
+                }
+            }
+            //this function will also add a few attributes to each item in the view for future use
+            //it adds distance from user, and slope of both edge lines, if applicable.
+            function checkInView(dir, range, dist, x, y, items) {
+                var inView = [], currentView = calculations.viewSpace(dir, range, dist, x, y);
+                items.forEach(function(item){
+                    var viewArray = currentView(item.x, item.y);
+                    if (viewArray[0]) {
+                        item.distance = viewArray[1];
+                        item.m1 = viewArray[2];
+                        item.m2 = viewArray[3];
+                        inView.push(item);
+                    }
+                });
+                return inView;
+            }
+            //finds angle in view that each item should be displayed at
+            //uses line slopes from checkInView (m1, m2) in order to be able to determine which side of dir item should be on.
+            function getItemPositioning(itemList, player){
+                var lineEq = calculations.lineEquation;
+                var lineLen = calculations.lineLength;
+                itemList.forEach(function(item) {
+                    var side1SandB = lineEq(null, player.x, player.y, item.m1);
+                    var side1Length = lineLen(side1SandB.m_0, side1SandB.b_0, item.x, item.y);
+                    if (item.m2 === null) {
+                        var side2Length = Math.abs(player.x - item.x);
+                    }
+                    else {
+                        var side2SandB = lineEq(null, player.x, player.y, item.m2);
+                        var side2Length = lineLen(side2SandB.m_0, side2SandB.b_0, itemx, itemy);
+                    }
+                    if (side1Length < side2Length) {
+                        var angle = player.FofV.angle - Math.asin( side1Length, item.distance );
+                    }
+                    else if (side2Length < side1Length) {
+                        var angle = Math.asin( side2Length, item.distance );
+                    }
+                    else {
+                        var angle = player.FofV.angle / 2;
+                    }
+                    item.angle = angle;
+                });
+                return itemList;
+            }
+
+            var draw = {
+                sky: function() {
+                    ctx.fillStyle = "#00BFFF";
+                    ctx.fillRect(0, 0, cnvs.width, 6 * cnvs.height / 10);
+                },
+                Items: function(itemList, player) {
+                        //after this an item has its distance and angle of display
+                        itemList = getItemPositioning(itemList, player);
+                        //can only be drawn on the bottom 4/10 of canvas
+                }
+            };
+
+            function render(itemList, player) {
+                ctx.clearRect(0, 0, cnvs.width, cnvs.height);
+                draw.sky();
+                draw.Items(itemList, player);
+            }
+
+            function makeView(player, items) {
+                var itemList = checkInView(player.dir, player.FofV.angle, player.FofV.dist, player.x, player.y, items);
+                render(itemList, player);
+            }
+
+            function update(user, items) {
+
+            }
+
+
+            var screen = makeScreen();
+            var cnvs = screen[0];
+            var ctx = screen[1];
+            window.onresize = resize;
+            //dir 0 - 2pi
+            var player = { x: 0 , y: 0 , dir: 0 , FofV: { dist: 150, angle: Math.PI/2 } };
+            var fire = { x: 50, y: 50 , image: "fire.png" };
+            var pi = Math.PI;
+            img = new Image();
+            img.src = fire.image;
+            img.onload = function(){
+                console.log(img.naturalWidth, img.naturalHeight);
+                ctx.drawImage(img, fire.x, fire.y, 50, 50);
+            }
+            //ctx.drawImage(img, fire.x, fire.y);
+        })();
+    </script>
+    </body>
+
+</html>
