@@ -34,6 +34,9 @@
             function resize() {
                 var newSize = screenSize();
                 cnvs.width = newSize[0], cnvs.height = newSize[1];
+                if (lastState) {
+                    render(lastState.itemList, lastState.player);
+                }
             }
 
             //returns object full of calculation functions
@@ -48,6 +51,7 @@
                         // >1 <2
                     if ( dir > 2 * pi - (pi - range) / 2 || dir < (pi - range) / 2 ) {
                         return function(x,y) {
+                            //console.log(1);
                             /*
                             a test I ran to fix some errors
                             console.log(y - y_0 > Math.tan( dir - (range / 2) * (x - x_0) ), y - y_0 < Math.tan( dir + (range / 2)) * (x - x_0), "Y " + (y - y_0), "X " + (x - x_0), "right " + ( Math.tan( dir + (range / 2)) * (x - x_0) ) );
@@ -62,11 +66,15 @@
                     }
                     //(π - range)/2  ->  π - (π - range)/2
                         // >1 >2
-                    else if ( dir > (pi - range) / 2 && dir > pi - (pi - range) / 2 ) {
+                    else if ( dir > (pi - range) / 2 && dir < pi - (pi - range) / 2 ) {
+                        //console.log(2);
                         return function(x,y) {
                             var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
                             var m1 = Math.tan( dir - (range / 2));
                             var m2 = Math.tan( dir + (range / 2));
+                            /*console.log("m1: " + m1, "m2: " + m2);
+                            //console.log("m1 2: " + Math.tan(2 * pi + (dir - (range / 2) )));
+                            console.log("dir: " + dir, "range: " + range);*/
                             return [((y - y_0 > m1 * (x - x_0) ) && 
                                 y - y_0 > m2 * (x - x_0) &&
                                 Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) ) < dist), distance, m1, m2];
@@ -74,7 +82,8 @@
                     }
                     // π - (π - range)/2  ->  π + (π - range)/2
                         // <1 >2
-                    else if ( dir < pi - (pi - range) / 2 && dir > pi + (pi - range) / 2 ) {
+                    else if ( dir > pi - (pi - range) / 2 && dir < pi + (pi - range) / 2 ) {
+                        //console.log(3);
                         return function(x,y) {
                             var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
                             var m1 = Math.tan( dir - (range / 2));
@@ -86,7 +95,8 @@
                     }
                     // π + (π - range)/2  ->  2π - (π - range)/2
                         // <1 <2
-                    else if ( dir < pi + (pi - range) / 2 && dir < 2 * pi - (pi - range) / 2 ) {
+                    else if ( dir > pi + (pi - range) / 2 && dir < 2 * pi - (pi - range) / 2 ) {
+                        //console.log(4);
                         return function(x,y) {
                             var distance = Math.sqrt( Math.pow(y - y_0,2) + Math.pow(x - x_0,2) );
                             var m1 = Math.tan( dir - (range / 2));
@@ -191,13 +201,13 @@
                     }
                     else {
                         var side2SandB = lineEq(null, player.x, player.y, item.m2);
-                        var side2Length = lineLen(side2SandB.m_0, side2SandB.b_0, itemx, itemy);
+                        var side2Length = lineLen(side2SandB.m_0, side2SandB.b_0, item.x, item.y);
                     }
                     if (side1Length < side2Length) {
-                        var angle = player.FofV.angle - Math.asin( side1Length, item.distance );
+                        var angle = player.FofV.angle - Math.asin( side1Length / item.distance );
                     }
                     else if (side2Length < side1Length) {
-                        var angle = Math.asin( side2Length, item.distance );
+                        var angle = Math.asin( side2Length / item.distance );
                     }
                     else {
                         var angle = player.FofV.angle / 2;
@@ -207,15 +217,46 @@
                 return itemList;
             }
 
+            //this function should only be called once per item type. Should never need to call each time new fire is created. Make a new fire item based off of what this function creates. Need a check function which will know when images are loaded so that stuff can start.
+            function newImage(src, maxSize, obj) {
+                img = new Image();
+                img.src = src;
+                img.onload = function() {
+                    img.ratio = img.naturalWidth/img.naturalHeight;
+                    img.maxSize = maxSize;
+                    obj.imgInfo = img;
+                    obj.loaded = true;
+                }
+            }
+
+            function makeNewItem(imgObj, xPos, yPos){
+                return { imgInfo: imgObj, x: xPos, y: yPos };
+            }
+
             var draw = {
                 sky: function() {
                     ctx.fillStyle = "#00BFFF";
                     ctx.fillRect(0, 0, cnvs.width, 6 * cnvs.height / 10);
                 },
                 Items: function(itemList, player) {
+
+
                         //after this an item has its distance and angle of display
-                        itemList = getItemPositioning(itemList, player);
-                        //can only be drawn on the bottom 4/10 of canvas
+                    itemList = getItemPositioning(itemList, player);
+                        //need to add min size so some things don't start at 0 size
+                    itemList.sort(function(a, b) {
+                        return b.distance - a.distance;
+                    });
+
+                    //next add in the angled view
+
+                    itemList.forEach(function(item) {
+                        item.imgInfo.height = item.imgInfo.maxSize * (1 - item.distance/player.FofV.dist);
+                        item.imgInfo.width = item.imgInfo.height * item.imgInfo.ratio;
+                        var x = cnvs.width * (item.angle / player.FofV.angle) - item.imgInfo.width/2;
+                        var y = (cnvs.height - 4/10 * cnvs.height * item.distance/player.FofV.dist) - item.imgInfo.height;
+                        ctx.drawImage(item.imgInfo, x, y, item.imgInfo.height, item.imgInfo.width);
+                    });
                 }
             };
 
@@ -223,16 +264,134 @@
                 ctx.clearRect(0, 0, cnvs.width, cnvs.height);
                 draw.sky();
                 draw.Items(itemList, player);
+                lastState = { itemList : itemList, player : player };
             }
 
             function makeView(player, items) {
                 var itemList = checkInView(player.dir, player.FofV.angle, player.FofV.dist, player.x, player.y, items);
+                //items is normal, itemList seems to be empty
                 render(itemList, player);
             }
 
-            function update(user, items) {
-
+            function startUpdate(itemsArray, player) {
+                function update() {
+                    makeView(player, itemsArray);
+                    /*if (player.y < 30) {
+                        player.x += .1;
+                        player.y = player.x;
+                        player.dir += (pi/2) / 300;
+                    }
+                    if (player.y > 30 && player.y < 60) {
+                        player.x -=.1;
+                        player.y +=.1;
+                        player.dir += (pi/2) / 300;
+                    }*/
+                    if (player.movement) {
+                        player.x += player.speed.x;
+                        player.y += player.speed.y;
+                    }
+                    if (player.turning) {
+                        player.dir += player.turnMagnitude;
+                        if (player.movement) {
+                            var speedXY = moveDir(findFactor(player.currentDir) + player.dir, player.speed.magnitude);
+                            player.speed.x = speedXY.x;
+                            player.speed.y = speedXY.y;
+                        }
+                    }
+                    requestAnimationFrame(update);
+                }
+                update();
             }
+
+            function loadInterval(imgArray, player) {
+                function loadGame() {
+                    if (!imgArray.some(function(img) {
+                        return !img.loaded;
+                    })) {
+                        clearInterval(interval);
+                        startGame(imgArray, player);
+                    }
+                }
+                var interval = setInterval(loadGame, 100);
+            }
+
+            function startGame(imgArray, player) {
+                itemsArray.push(makeNewItem(imgArray[0].imgInfo, 0, 10));
+                itemsArray.push(makeNewItem(imgArray[0].imgInfo, 0, 30));
+                itemsArray.push(makeNewItem(imgArray[0].imgInfo, 0, 50));
+                startUpdate(itemsArray, player);
+            }
+
+            function setupField(imgArray, player) {
+                imgArray.forEach(function(img) {
+                    //make sure all imgs have a loaded attribute
+                    newImage(img.image, img.maxSize, img);
+                });
+                loadInterval(imgArray, player);
+            }
+
+            function moveDir(dir, speed) {
+                dir = dir % (2 * pi);
+                if (dir < 0)
+                    dir += 2 * pi;
+                var y = speed * Math.sin(dir);
+                var x = speed * Math.cos(dir);
+                return {x: x, y: y};
+            }
+
+            function findFactor(direction) {
+                var factor = 0;
+                if (direction === 'west') {
+                    factor = pi/2;
+                }
+                else if (direction === 'south') {
+                    factor = pi;
+                }
+                else if (direction === 'east') {
+                    factor = 3 * pi / 2;
+                }
+                return factor;
+            }
+
+            addEventListener('keydown', function(e) {
+                //arrow keys left: 37, up: 38, right: 39, down: 40
+                if (directionCodes[e.keyCode]) {
+                    //this means you are moving in a new direction so call moveDir
+                    //then set movement to on and update will see that it is now on)
+                    var direction = directionCodes[e.keyCode];
+                    if (!(state.movement.west || state.movement.east || state.movement.north || state.movement.south)) {
+                        state.movement[direction] = true;
+                        var factor = findFactor(direction);
+                        var speedXY = moveDir(player.dir + factor, player.speed.magnitude);
+                        player.speed.x = speedXY.x;
+                        player.speed.y = speedXY.y;
+                        player.movement = true;
+                    }
+                }
+                //s: 83, d: 68
+                else if (turningCodes[e.keyCode]) {
+                    var direction = turningCodes[e.keyCode];
+                    state.turning[direction] = true;
+                    player.turning = true;
+                    player.turnMagnitude = Math.abs(player.turnMagnitude);
+                    if (direction === 'right')
+                        player.turnMagnitude *= -1;
+                    //if turning then call a function that will update dir
+                }
+            });
+            
+            addEventListener('keyup', function(e) {
+                if (directionCodes[e.keyCode]) {
+                    var direction = directionCodes[e.keyCode];
+                    state.movement[direction] = false;
+                    player.movement = false;
+                }
+                else if (turningCodes[e.keyCode]) {
+                    var direction = turningCodes[e.keyCode];
+                    state.turning[direction] = false;
+                    state.turning.right || state.turning.left ? player.turnMagnitude *= -1 : player.turning = false;
+                }
+            });
 
 
             var screen = makeScreen();
@@ -240,16 +399,17 @@
             var ctx = screen[1];
             window.onresize = resize;
             //dir 0 - 2pi
-            var player = { x: 0 , y: 0 , dir: 0 , FofV: { dist: 150, angle: Math.PI/2 } };
-            var fire = { x: 50, y: 50 , image: "fire.png" };
-            var pi = Math.PI;
-            img = new Image();
-            img.src = fire.image;
-            img.onload = function(){
-                console.log(img.naturalWidth, img.naturalHeight);
-                ctx.drawImage(img, fire.x, fire.y, 50, 50);
-            }
-            //ctx.drawImage(img, fire.x, fire.y);
+            const pi = Math.PI;
+            var player = { x: 0 , y: 0 , dir: (pi/2 + .001) , FofV: { dist: 150, angle: pi/1.5 },
+                           speed: {magnitude: .5, x: 0, y: 1}, turnMagnitude: pi/300 , movement: false, turning: false, currentDir: 'north'},
+                fire = { x: 0, y: 20 , image: "fire.png" , maxSize: 70, loaded: false },
+                itemsArray = [], imgArray = [fire],
+                lastState = null,
+                directionCodes = {'37': 'west', '38': 'north', '39': 'east', '40': 'south'},
+                turningCodes = {'83': 'left', '68': 'right'},
+                state = { movement: {'west': false, 'north': false, 'east': false, 'south': false },
+                          turning: {'left': false, 'right': false} };
+            setupField(imgArray, player);
         })();
     </script>
     </body>
