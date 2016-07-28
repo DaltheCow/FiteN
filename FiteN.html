@@ -276,16 +276,6 @@
             function startUpdate(itemsArray, player) {
                 function update() {
                     makeView(player, itemsArray);
-                    /*if (player.y < 30) {
-                        player.x += .1;
-                        player.y = player.x;
-                        player.dir += (pi/2) / 300;
-                    }
-                    if (player.y > 30 && player.y < 60) {
-                        player.x -=.1;
-                        player.y +=.1;
-                        player.dir += (pi/2) / 300;
-                    }*/
                     if (player.movement) {
                         player.x += player.speed.x;
                         player.y += player.speed.y;
@@ -319,6 +309,8 @@
                 itemsArray.push(makeNewItem(imgArray[0].imgInfo, 0, 10));
                 itemsArray.push(makeNewItem(imgArray[0].imgInfo, 0, 30));
                 itemsArray.push(makeNewItem(imgArray[0].imgInfo, 0, 50));
+                itemsArray.push(makeNewItem(imgArray[0].imgInfo, -20, 30));
+                itemsArray.push(makeNewItem(imgArray[0].imgInfo, 20, 30));
                 startUpdate(itemsArray, player);
             }
 
