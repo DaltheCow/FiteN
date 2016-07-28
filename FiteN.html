@@ -282,6 +282,12 @@
                     }
                     if (player.turning) {
                         player.dir += player.turnMagnitude;
+                        if (player.dir < 0 ) {
+                            player.dir += 2 * pi;
+                        }
+                        else if (player.dir > 2 * pi) {
+                            player.dir -= 2 * pi;
+                        }
                         if (player.movement) {
                             var speedXY = moveDir(findFactor(player.currentDir) + player.dir, player.speed.magnitude);
                             player.speed.x = speedXY.x;
@@ -353,6 +359,7 @@
                     var direction = directionCodes[e.keyCode];
                     if (!(state.movement.west || state.movement.east || state.movement.north || state.movement.south)) {
                         state.movement[direction] = true;
+                        player.currentDir = direction;
                         var factor = findFactor(direction);
                         var speedXY = moveDir(player.dir + factor, player.speed.magnitude);
                         player.speed.x = speedXY.x;
